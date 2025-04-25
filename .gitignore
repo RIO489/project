@@ -1,0 +1,96 @@
+# Python
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.db
+*.sqlite3
+*.log
+*.pot
+*.py[cod]
+*$py.class
+
+# Django
+*.log
+*.pot
+*.pyc
+__pycache__/
+
+# Django migrations
+*/migrations/*
+!*/migrations/__init__.py
+
+# Database
+db.sqlite3
+*.sqlite3
+
+# Static files
+staticfiles/
+static/
+
+# Media
+media/
+
+# Virtual environment
+venv/
+.env/
+.venv/
+env/
+env.bak/
+venv.bak/
+
+# IDEs and text editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*.sublime-workspace
+*.sublime-project
+
+# Python environment files
+Pipfile.lock
+Pipfile
+
+# Django secret key
+django-secrets.json
+
+# Docker
+docker-compose.override.yml
+
+# VSCode settings folder
+.vscode/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# pytest
+.cache/
+nosetests.xml
+coverage.xml
+*.cover
+*.hypothesis/
+
+# Python Wheel
+*.whl
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.eggs/
+.eggs/
+
+# Sentry DSN
+*.env
+
+# Test directories
+*.tox/
+*.nox/
+*.coverage
+.coverage.*
+
+# pyenv
+.python-version
+
+# Celery result backends
+celerybeat-schedule
