@@ -1,0 +1,285 @@
+{% extends 'base.html' %}
+
+{% block title %}Порівняння цін{% endblock %}
+
+{% block content %}
+<h2>Порівняння цін на віртуальні активи</h2>
+
+{% if not items %}
+    <div class="alert alert-info">
+        <p>Виберіть активи для порівняння:</p>
+    </div>
+    
+    <form method="get" action="{% url 'asset_compare' %}" class="mb-4">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <select name="items" multiple class="form-select" size="10" required>
+                        {% for asset in assets %}
+                            <option value="{{ asset.id }}">{{ asset.name }} ({{ asset.source.name }})</option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-text">Утримуйте Ctrl (Cmd на Mac) для вибору декількох активів</div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div id="selectedItems" class="list-group mb-3">
+                    <div class="list-group-item text-muted">Вибрані активи з'являться тут</div>
+                </div>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Порівняти вибрані</button>
+        <button type="button" id="compareFromStorage" class="btn btn-outline-primary">Порівняти збережені</button>
+    </form>
+{% else %}
+    <div class="mb-4">
+        <a href="{% url 'asset_compare' %}" class="btn btn-outline-secondary">Вибрати інші активи</a>
+    </div>
+    
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    Графік порівняння цін
+                </div>
+                <div class="card-body">
+                    <canvas id="compareChart" width="400" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    Поточні ціни
+                </div>
+                <div class="card-body">
+                    <ul class="list-group">
+                        {% for item in items %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <span>{{ item.name }}</span>
+                                <span class="badge bg-primary rounded-pill">{{ item.current_price }} USD</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="table-responsive">
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Критерій</th>
+                    {% for item in items %}
+                        <th>{{ item.name }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <th>Поточна ціна</th>
+                    {% for item in items %}
+                        <td>{{ item.current_price|default:"-" }} USD</td>
+                    {% endfor %}
+                </tr>
+                <tr>
+                    <th>Джерело</th>
+                    {% for item in items %}
+                        <td>{{ item.source }}</td>
+                    {% endfor %}
+                </tr>
+                <tr>
+                    <th>Макс. ціна (30 днів)</th>
+                    {% for item in items %}
+                        <td id="max-price-{{ item.id }}">-</td>
+                    {% endfor %}
+                </tr>
+                <tr>
+                    <th>Мін. ціна (30 днів)</th>
+                    {% for item in items %}
+                        <td id="min-price-{{ item.id }}">-</td>
+                    {% endfor %}
+                </tr>
+                <tr>
+                    <th>Зміна за 30 днів</th>
+                    {% for item in items %}
+                        <td id="price-change-{{ item.id }}">-</td>
+                    {% endfor %}
+                </tr>
+                <tr>
+                    <th>Волатильність</th>
+                    {% for item in items %}
+                        <td id="volatility-{{ item.id }}">-</td>
+                    {% endfor %}
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="mt-4">
+        <h3>Рекомендації для інвестування</h3>
+        <div class="card">
+            <div class="card-body">
+                <p>На основі аналізу цінової динаміки:</p>
+                <ul id="recommendations">
+                    <!-- Рекомендації буде додано за допомогою JavaScript -->
+                </ul>
+                <div class="alert alert-warning mt-3">
+                    <strong>Увага!</strong> Це спрощений аналіз, який не враховує всі фактори ринку. Завжди проводьте власне дослідження перед інвестуванням.
+                </div>
+            </div>
+        </div>
+    </div>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        {% if not items %}
+            // Код для сторінки вибору активів
+            const selectElement = document.querySelector('select[name="items"]');
+            const selectedItemsContainer = document.getElementById('selectedItems');
+            
+            selectElement.addEventListener('change', function() {
+                selectedItemsContainer.innerHTML = '';
+                
+                const selectedOptions = Array.from(this.selectedOptions);
+                if (selectedOptions.length === 0) {
+                    selectedItemsContainer.innerHTML = '<div class="list-group-item text-muted">Вибрані активи з\'являться тут</div>';
+                    return;
+                }
+                
+                selectedOptions.forEach(option => {
+                    const item = document.createElement('div');
+                    item.className = 'list-group-item';
+                    item.textContent = option.textContent;
+                    selectedItemsContainer.appendChild(item);
+                });
+            });
+            
+            // Кнопка для порівняння збережених активів
+            const compareFromStorageButton = document.getElementById('compareFromStorage');
+            compareFromStorageButton.addEventListener('click', function() {
+                const compareItems = localStorage.getItem('compareItems');
+                if (compareItems) {
+                    const items = JSON.parse(compareItems);
+                    if (items.length > 0) {
+                        window.location.href = '{% url "asset_compare" %}?items=' + items.join('&items=');
+                    } else {
+                        alert('Немає збережених активів для порівняння');
+                    }
+                } else {
+                    alert('Немає збережених активів для порівняння');
+                }
+            });
+        {% else %}
+            // Код для сторінки порівняння
+            // Функція для генерування випадкового кольору
+            function getRandomColor() {
+                const letters = '0123456789ABCDEF';
+                let color = '#';
+                for (let i = 0; i < 6; i++) {
+                    color += letters[Math.floor(Math.random() * 16)];
+                }
+                return color;
+            }
+            
+            // Дані для графіка
+            const datasets = [
+                {% for item in items %}
+                {
+                    label: '{{ item.name }}',
+                    data: {{ item.chart_data|safe }},
+                    borderColor: getRandomColor(),
+                    fill: false,
+                    tension: 0.1
+                },
+                {% endfor %}
+            ];
+            
+            // Створення графіка
+            const ctx = document.getElementById('compareChart').getContext('2d');
+            const chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'day'
+                            }
+                        },
+                        y: {
+                            beginAtZero: false
+                        }
+                    }
+                }
+            });
+            
+            // Розрахунок статистики для кожного активу
+            {% for item in items %}
+                const priceData{{ item.id }} = {{ item.chart_data|safe }}.map(point => point.y);
+                if (priceData{{ item.id }}.length > 0) {
+                    const maxPrice{{ item.id }} = Math.max(...priceData{{ item.id }});
+                    const minPrice{{ item.id }} = Math.min(...priceData{{ item.id }});
+                    const firstPrice{{ item.id }} = priceData{{ item.id }}[0];
+                    const lastPrice{{ item.id }} = priceData{{ item.id }}[priceData{{ item.id }}.length - 1];
+                    const priceChange{{ item.id }} = lastPrice{{ item.id }} - firstPrice{{ item.id }};
+                    const priceChangePercent{{ item.id }} = firstPrice{{ item.id }} > 0 ? (priceChange{{ item.id }} / firstPrice{{ item.id }}) * 100 : 0;
+                    
+                    // Обчислення волатильності (стандартне відхилення)
+                    const avgPrice{{ item.id }} = priceData{{ item.id }}.reduce((a, b) => a + b, 0) / priceData{{ item.id }}.length;
+                    const variance{{ item.id }} = priceData{{ item.id }}.reduce((a, b) => a + Math.pow(b - avgPrice{{ item.id }}, 2), 0) / priceData{{ item.id }}.length;
+                    const volatility{{ item.id }} = Math.sqrt(variance{{ item.id }});
+                    
+                    // Відображення статистики
+                    document.getElementById('max-price-{{ item.id }}').textContent = maxPrice{{ item.id }}.toFixed(2) + ' USD';
+                    document.getElementById('min-price-{{ item.id }}').textContent = minPrice{{ item.id }}.toFixed(2) + ' USD';
+                    
+                    const priceChangeElement{{ item.id }} = document.getElementById('price-change-{{ item.id }}');
+                    priceChangeElement{{ item.id }}.textContent = priceChange{{ item.id }}.toFixed(2) + ' USD (' + priceChangePercent{{ item.id }}.toFixed(2) + '%)';
+                    
+                    if (priceChange{{ item.id }} > 0) {
+                        priceChangeElement{{ item.id }}.classList.add('text-success');
+                    } else if (priceChange{{ item.id }} < 0) {
+                        priceChangeElement{{ item.id }}.classList.add('text-danger');
+                    }
+                    
+                    document.getElementById('volatility-{{ item.id }}').textContent = volatility{{ item.id }}.toFixed(2) + ' USD';
+                }
+            {% endfor %}
+            
+            // Генерування рекомендацій
+            const recommendationsContainer = document.getElementById('recommendations');
+            
+            {% for item in items %}
+                if (typeof priceData{{ item.id }} !== 'undefined' && priceData{{ item.id }}.length > 0) {
+                    const recommendation = document.createElement('li');
+                    
+                    if (priceChange{{ item.id }} > 0 && priceChangePercent{{ item.id }} > 5) {
+                        recommendation.textContent = '{{ item.name }}: Висхідний тренд з високим приростом ({{ priceChangePercent|floatformat:2 }}%). Розгляньте можливість фіксації прибутку.';
+                        recommendation.classList.add('text-success');
+                    } else if (priceChange{{ item.id }} > 0) {
+                        recommendation.textContent = '{{ item.name }}: Позитивна динаміка з помірним приростом.';
+                    } else if (priceChange{{ item.id }} < 0 && priceChangePercent{{ item.id }} < -5) {
+                        recommendation.textContent = '{{ item.name }}: Суттєве падіння ціни. Можливо, це хороша точка для входу, але слідкуйте за подальшою динамікою.';
+                        recommendation.classList.add('text-danger');
+                    } else if (priceChange{{ item.id }} < 0) {
+                        recommendation.textContent = '{{ item.name }}: Незначне зниження ціни.';
+                    } else {
+                        recommendation.textContent = '{{ item.name }}: Стабільна ціна без значних коливань.';
+                    }
+                    
+                    recommendationsContainer.appendChild(recommendation);
+                }
+            {% endfor %}
+        {% endif %}
+    });
+</script>
+{% endblock %}

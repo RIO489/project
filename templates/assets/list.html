@@ -1,0 +1,144 @@
+{% extends 'base.html' %}
+
+{% block title %}Список активів{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2>Список віртуальних активів</h2>
+    </div>
+    <div class="col-md-4">
+        <form method="get" action="{% url 'asset_list' %}" class="d-flex">
+            <input type="text" name="search" class="form-control me-2" placeholder="Пошук активів..." value="{{ request.GET.search }}">
+            <button type="submit" class="btn btn-primary">Пошук</button>
+        </form>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-3 mb-4">
+        <div class="card">
+            <div class="card-header">
+                Фільтри
+            </div>
+            <div class="card-body">
+                <form method="get" action="{% url 'asset_list' %}">
+                    <div class="mb-3">
+                        <label for="source" class="form-label">Джерело</label>
+                        <select name="source" id="source" class="form-select">
+                            <option value="">Усі джерела</option>
+                            {% for source in sources %}
+                                <option value="{{ source.id }}" {% if request.GET.source == source.id|stringformat:"i" %}selected{% endif %}>
+                                    {{ source.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="min_price" class="form-label">Мін. ціна</label>
+                        <input type="number" name="min_price" id="min_price" class="form-control" value="{{ request.GET.min_price }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="max_price" class="form-label">Макс. ціна</label>
+                        <input type="number" name="max_price" id="max_price" class="form-control" value="{{ request.GET.max_price }}">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Застосувати</button>
+                    <a href="{% url 'asset_list' %}" class="btn btn-outline-secondary">Скинути</a>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-9">
+        <div class="row row-cols-1 row-cols-md-3 g-4">
+            {% for asset in assets %}
+                <div class="col">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ asset.name }}</h5>
+                            <h6 class="card-subtitle mb-2 text-muted">{{ asset.source.name }}</h6>
+                            {% if asset.current_price %}
+                                <p class="card-text">Поточна ціна: <strong>{{ asset.current_price }} USD</strong></p>
+                            {% else %}
+                                <p class="card-text text-muted">Немає даних про ціну</p>
+                            {% endif %}
+                            <p class="card-text">
+                                <small class="text-muted">Оновлено: {{ asset.last_fetched|default:"немає даних" }}</small>
+                            </p>
+                        </div>
+                        <div class="card-footer">
+                            <a href="{% url 'asset_detail' asset.id %}" class="btn btn-sm btn-primary">Деталі</a>
+                            <button class="btn btn-sm btn-outline-secondary add-to-compare" data-asset-id="{{ asset.id }}">Додати до порівняння</button>
+                        </div>
+                    </div>
+                </div>
+            {% empty %}
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        Активи не знайдено. Спробуйте змінити параметри пошуку.
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+        
+        <div class="mt-4">
+            <nav>
+                <ul class="pagination">
+                    {% if assets.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.source %}&source={{ request.GET.source }}{% endif %}{% if request.GET.min_price %}&min_price={{ request.GET.min_price }}{% endif %}{% if request.GET.max_price %}&max_price={{ request.GET.max_price }}{% endif %}">Перша</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ assets.previous_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.source %}&source={{ request.GET.source }}{% endif %}{% if request.GET.min_price %}&min_price={{ request.GET.min_price }}{% endif %}{% if request.GET.max_price %}&max_price={{ request.GET.max_price }}{% endif %}">Попередня</a>
+                        </li>
+                    {% endif %}
+                    
+                    <li class="page-item disabled">
+                        <span class="page-link">Сторінка {{ assets.number }} з {{ assets.paginator.num_pages }}</span>
+                    </li>
+                    
+                    {% if assets.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ assets.next_page_number }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.source %}&source={{ request.GET.source }}{% endif %}{% if request.GET.min_price %}&min_price={{ request.GET.min_price }}{% endif %}{% if request.GET.max_price %}&max_price={{ request.GET.max_price }}{% endif %}">Наступна</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ assets.paginator.num_pages }}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.source %}&source={{ request.GET.source }}{% endif %}{% if request.GET.min_price %}&min_price={{ request.GET.min_price }}{% endif %}{% if request.GET.max_price %}&max_price={{ request.GET.max_price }}{% endif %}">Остання</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const compareButtons = document.querySelectorAll('.add-to-compare');
+        
+        compareButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const assetId = this.getAttribute('data-asset-id');
+                
+                let compareItems = localStorage.getItem('compareItems');
+                compareItems = compareItems ? JSON.parse(compareItems) : [];
+                
+                if (!compareItems.includes(assetId)) {
+                    compareItems.push(assetId);
+                    localStorage.setItem('compareItems', JSON.stringify(compareItems));
+                    this.textContent = 'Додано до порівняння';
+                    this.classList.remove('btn-outline-secondary');
+                    this.classList.add('btn-success');
+                } else {
+                    compareItems = compareItems.filter(id => id !== assetId);
+                    localStorage.setItem('compareItems', JSON.stringify(compareItems));
+                    this.textContent = 'Додати до порівняння';
+                    this.classList.remove('btn-success');
+                    this.classList.add('btn-outline-secondary');
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,158 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ asset.name }} - Деталі{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <h2>{{ asset.name }}</h2>
+        <p class="text-muted">Джерело: {{ asset.source.name }}</p>
+        
+        {% if asset.current_price %}
+            <p class="fs-4">Поточна ціна: <strong>{{ asset.current_price }} USD</strong></p>
+        {% else %}
+            <p class="fs-4 text-muted">Немає даних про ціну</p>
+        {% endif %}
+        
+        {% if asset.last_fetched %}
+            <p>Останнє оновлення: {{ asset.last_fetched }}</p>
+        {% endif %}
+        
+        <div class="mt-4">
+            <h3>Графік зміни ціни</h3>
+            <div class="card">
+                <div class="card-body">
+                    <canvas id="priceChart" width="400" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="mt-4">
+            <h3>Історія цін</h3>
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Дата</th>
+                            <th>Ціна</th>
+                            <th>Валюта</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for record in price_history %}
+                            <tr>
+                                <td>{{ record.timestamp }}</td>
+                                <td>{{ record.price }}</td>
+                                <td>{{ record.currency }}</td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="3" class="text-center">Немає даних про історію цін</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                Статистика
+            </div>
+            <div class="card-body">
+                <p><strong>Мінімальна ціна:</strong> <span id="minPrice">...</span> USD</p>
+                <p><strong>Максимальна ціна:</strong> <span id="maxPrice">...</span> USD</p>
+                <p><strong>Середня ціна:</strong> <span id="avgPrice">...</span> USD</p>
+                <p><strong>Зміна за 30 днів:</strong> <span id="priceChange">...</span> USD (<span id="priceChangePercent">...</span>%)</p>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                Деталі активу
+            </div>
+            <div class="card-body">
+                <p><strong>ID у системі:</strong> {{ asset.id }}</p>
+                <p><strong>Зовнішній ID:</strong> {{ asset.external_id|default:"Немає" }}</p>
+                {% if asset.metadata %}
+                    <p><strong>Метадані:</strong></p>
+                    <pre class="bg-light p-2">{{ asset.metadata|pprint }}</pre>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="d-grid gap-2 mt-4">
+            <a href="{% url 'asset_list' %}" class="btn btn-secondary">Назад до списку</a>
+            <a href="{% url 'asset_compare' %}?items={{ asset.id }}" class="btn btn-primary">Порівняти з іншими</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Дані для графіка
+        const labels = {{ chart_labels|safe }};
+        const prices = {{ chart_prices|safe }};
+        
+        // Створення графіка
+        const ctx = document.getElementById('priceChart').getContext('2d');
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Ціна (USD)',
+                    data: prices,
+                    borderColor: 'rgb(75, 192, 192)',
+                    tension: 0.1,
+                    fill: false
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: false
+                    }
+                }
+            }
+        });
+        
+        // Розрахунок статистики
+        if (prices.length > 0) {
+            const minPrice = Math.min(...prices);
+            const maxPrice = Math.max(...prices);
+            const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
+            
+            // Обчислення зміни ціни
+            const firstPrice = prices[0];
+            const lastPrice = prices[prices.length - 1];
+            const priceChange = lastPrice - firstPrice;
+            const priceChangePercent = firstPrice > 0 ? (priceChange / firstPrice) * 100 : 0;
+            
+            // Відображення статистики
+            document.getElementById('minPrice').textContent = minPrice.toFixed(2);
+            document.getElementById('maxPrice').textContent = maxPrice.toFixed(2);
+            document.getElementById('avgPrice').textContent = avgPrice.toFixed(2);
+            document.getElementById('priceChange').textContent = priceChange.toFixed(2);
+            document.getElementById('priceChangePercent').textContent = priceChangePercent.toFixed(2);
+            
+            // Зміна кольору індикатора зміни ціни
+            const priceChangeElement = document.getElementById('priceChange');
+            const priceChangePercentElement = document.getElementById('priceChangePercent');
+            
+            if (priceChange > 0) {
+                priceChangeElement.classList.add('text-success');
+                priceChangePercentElement.classList.add('text-success');
+            } else if (priceChange < 0) {
+                priceChangeElement.classList.add('text-danger');
+                priceChangePercentElement.classList.add('text-danger');
+            }
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Аналіз цін на віртуальні активи{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            padding-top: 2rem;
+            padding-bottom: 2rem;
+        }
+        .header {
+            margin-bottom: 2rem;
+        }
+    </style>
+    {% block extra_styles %}{% endblock %}
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h1><a href="{% url 'asset_list' %}" class="text-decoration-none text-dark">Аналіз цін на віртуальні активи</a></h1>
+                <nav>
+                    <ul class="nav">
+                        <li class="nav-item"><a href="{% url 'asset_list' %}" class="nav-link">Активи</a></li>
+                        <li class="nav-item"><a href="{% url 'asset_compare' %}" class="nav-link">Порівняти ціни</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </header>
+        <main>
+            {% block content %}{% endblock %}
+        </main>
+        <footer class="mt-5 pt-3 border-top text-center text-muted">
+            <p>&copy; 2025 Oleksandr Hamaiunov</p>
+        </footer>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>
