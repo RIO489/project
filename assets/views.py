@@ -59,6 +59,8 @@ def asset_detail(request, pk):
     chart_labels = []
     chart_prices = []
     
+
+    
     for record in reversed(list(price_history)):
         chart_labels.append(record.timestamp.strftime('%Y-%m-%d'))
         chart_prices.append(float(record.price))

@@ -39,17 +39,18 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for record in price_history %}
-                            <tr>
-                                <td>{{ record.timestamp }}</td>
-                                <td>{{ record.price }}</td>
-                                <td>{{ record.currency }}</td>
-                            </tr>
-                        {% empty %}
-                            <tr>
-                                <td colspan="3" class="text-center">Немає даних про історію цін</td>
-                            </tr>
-                        {% endfor %}
+                        {% if price_history.first %}
+                            <p class="fs-4">Поточна ціна: <strong>{{ price_history.first.price }} {{ price_history.first.currency }}</strong></p>
+                            {% if asset.current_price and price_history.first.price != asset.current_price %}
+                                <div class="alert alert-warning">
+                                    <small>Увага: Існує розбіжність між поточною ціною ({{ asset.current_price }} USD) та останньою ціною в історії.</small>
+                                </div>
+                            {% endif %}
+                        {% elif asset.current_price %}
+                            <p class="fs-4">Поточна ціна: <strong>{{ asset.current_price }} USD</strong></p>
+                        {% else %}
+                            <p class="fs-4 text-muted">Немає даних про ціну</p>
+                        {% endif %}
                     </tbody>
                 </table>
             </div>

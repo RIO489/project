@@ -28,35 +28,123 @@
                 <h5 class="card-title mb-0">Останні оновлені активи</h5>
                 <a href="{% url 'asset_list' %}" class="btn btn-sm btn-outline-primary">Всі активи</a>
             </div>
-            <div class="card-body">
+            <div class="card-body p-0">
                 {% if recent_assets %}
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th>Назва</th>
-                                    <th>Джерело</th>
-                                    <th>Поточна ціна</th>
-                                    <th>Оновлено</th>
-                                    <th></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for asset in recent_assets %}
-                                    <tr>
-                                        <td>{{ asset.name }}</td>
-                                        <td>{{ asset.source.name }}</td>
-                                        <td>{% if asset.current_price %}{{ asset.current_price }} USD{% else %}—{% endif %}</td>
-                                        <td>{{ asset.last_fetched|default:"-" }}</td>
-                                        <td><a href="{% url 'asset_detail' asset.id %}" class="btn btn-sm btn-primary">Деталі</a></td>
-                                    </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                    <div class="asset-grid">
+                        <div class="asset-grid-header">
+                            <div class="asset-name">Назва</div>
+                            <div class="asset-source">Джерело</div>
+                            <div class="asset-price">Ціна (USD)</div>
+                            <div class="asset-trend">Тренд</div>
+                            <div class="asset-actions">Дії</div>
+                        </div>
+                        
+                        {% for asset in recent_assets %}
+                            <div class="asset-item">
+                                <div class="asset-name">
+                                    <strong>{{ asset.name }}</strong>
+                                    <small class="text-muted d-block">Оновлено: {{ asset.last_fetched|default:"не оновлювалось" }}</small>
+                                </div>
+                                <div class="asset-source">
+                                    <span class="badge bg-secondary">{{ asset.source.name }}</span>
+                                </div>
+                                <div class="asset-price">
+                                    {% if asset.current_price %}
+                                        <span class="fw-bold {% if asset.price_trend > 0 %}text-success{% elif asset.price_trend < 0 %}text-danger{% endif %}">
+                                            {{ asset.current_price }}
+                                        </span>
+                                    {% else %}
+                                        <span class="text-muted">—</span>
+                                    {% endif %}
+                                </div>
+                                <div class="asset-trend">
+                                    <!-- Заглушка для міні-графіка -->
+                                    <div class="mini-chart" id="chart-{{ asset.id }}">
+                                        {% if asset.current_price %}
+                                            <div class="trend-indicator {% if asset.price_trend > 0 %}trend-up{% elif asset.price_trend < 0 %}trend-down{% else %}trend-neutral{% endif %}">
+                                                {% if asset.price_trend > 0 %}
+                                                    <i class="fas fa-arrow-up"></i>
+                                                {% elif asset.price_trend < 0 %}
+                                                    <i class="fas fa-arrow-down"></i>
+                                                {% else %}
+                                                    <i class="fas fa-minus"></i>
+                                                {% endif %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="asset-actions">
+                                    <div class="btn-group">
+                                        <a href="{% url 'asset_detail' asset.id %}" class="btn btn-sm btn-primary">Деталі</a>
+                                        <button class="btn btn-sm btn-outline-secondary add-to-compare" data-asset-id="{{ asset.id }}">
+                                            <i class="fas fa-exchange-alt"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
                     </div>
+                    
+                    {% if recent_assets|length < 3 %}
+                    <div class="p-3">
+                        <div class="alert alert-info mb-0">
+                            <i class="fas fa-info-circle"></i> Показано обмежену кількість активів. 
+                            <a href="{% url 'asset_list' %}" class="alert-link">Перегляньте всі активи</a> для отримання повної інформації.
+                        </div>
+                    </div>
+                    {% endif %}
                 {% else %}
-                    <div class="alert alert-info">Немає оновлених активів</div>
+                    <div class="p-3">
+                        <div class="alert alert-info mb-0">Немає оновлених активів</div>
+                    </div>
                 {% endif %}
+            </div>
+        </div>
+        
+        <!-- Додатковий блок зі статистикою ринку -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Статистика ринку</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-chart-line"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h6>Середня зміна цін</h6>
+                                <span class="stat-value">+3.2%</span>
+                                <span class="stat-period">за останні 7 днів</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-fire"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h6>Найбільший ріст</h6>
+                                <span class="stat-value">NFT активи</span>
+                                <span class="stat-period">+12.5% за місяць</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-exchange-alt"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h6>Активні джерела</h6>
+                                <span class="stat-value">{{ sources|length }}</span>
+                                <span class="stat-period">оновлюються щогодини</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -97,4 +185,103 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_styles %}
+<style>
+    .asset-grid {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .asset-grid-header {
+        display: grid;
+        grid-template-columns: 3fr 1fr 1fr 1fr 1fr;
+        background-color: #343a40;
+        color: white;
+        font-weight: bold;
+        padding: 10px 15px;
+        border-bottom: 1px solid rgba(0,0,0,0.125);
+    }
+    
+    .asset-item {
+        display: grid;
+        grid-template-columns: 3fr 1fr 1fr 1fr 1fr;
+        padding: 12px 15px;
+        align-items: center;
+        border-bottom: 1px solid rgba(0,0,0,0.125);
+        transition: all 0.2s;
+    }
+    
+    .asset-item:hover {
+        background-color: rgba(0,0,0,0.03);
+    }
+    
+    .asset-item:last-child {
+        border-bottom: none;
+    }
+    
+    .mini-chart {
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .trend-indicator {
+        font-size: 16px;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .trend-up {
+        background-color: rgba(40, 167, 69, 0.1);
+        color: #28a745;
+    }
+    
+    .trend-down {
+        background-color: rgba(220, 53, 69, 0.1);
+        color: #dc3545;
+    }
+    
+    .trend-neutral {
+        background-color: rgba(108, 117, 125, 0.1);
+        color: #6c757d;
+    }
+    
+    .stat-card {
+        display: flex;
+        align-items: center;
+        padding: 10px;
+    }
+    
+    .stat-icon {
+        font-size: 24px;
+        color: #007bff;
+        margin-right: 15px;
+    }
+    
+    .stat-info h6 {
+        margin-bottom: 5px;
+        font-size: 14px;
+        color: #6c757d;
+    }
+    
+    .stat-value {
+        display: block;
+        font-weight: bold;
+        font-size: 18px;
+    }
+    
+    .stat-period {
+        display: block;
+        font-size: 12px;
+        color: #6c757d;
+    }
+</style>
 {% endblock %}

@@ -28,6 +28,15 @@ class PriceHistory(models.Model):
 
     class Meta:
         ordering = ['-timestamp']
+
+    def save(self, *args, **kwargs):
+        # Спочатку зберігаємо запис історії ціни
+        super().save(*args, **kwargs)
+        
+        # Оновлюємо поточну ціну активу
+        self.asset.current_price = self.price
+        self.asset.last_fetched = self.timestamp
+        self.asset.save(update_fields=['current_price', 'last_fetched'])
         
 class ItemActivity(models.Model):
     asset = models.ForeignKey(VirtualAsset, on_delete=models.CASCADE, related_name='activity')
