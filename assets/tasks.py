@@ -2,6 +2,7 @@ import logging
 import requests
 from decimal import Decimal
 from datetime import datetime
+from datetime import timedelta
 import redis
 from celery import shared_task
 from bs4 import BeautifulSoup

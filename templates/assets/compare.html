@@ -263,7 +263,7 @@
                     const recommendation = document.createElement('li');
                     
                     if (priceChange{{ item.id }} > 0 && priceChangePercent{{ item.id }} > 5) {
-                        recommendation.textContent = '{{ item.name }}: Висхідний тренд з високим приростом ({{ priceChangePercent|floatformat:2 }}%). Розгляньте можливість фіксації прибутку.';
+                        recommendation.textContent = '{{ item.name }}: Висхідний тренд з високим приростом (' + priceChangePercent{{ item.id }}.toFixed(2) + '%). Розгляньте можливість фіксації прибутку.';
                         recommendation.classList.add('text-success');
                     } else if (priceChange{{ item.id }} > 0) {
                         recommendation.textContent = '{{ item.name }}: Позитивна динаміка з помірним приростом.';

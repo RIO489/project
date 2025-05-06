@@ -5,6 +5,7 @@ from django.db.models import Q
 from rest_framework import viewsets, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from django.db.models import Avg, Max, Min
 
 from .models import Source, VirtualAsset, PriceHistory, ItemActivity
 from .serializers import (
