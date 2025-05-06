@@ -4,6 +4,118 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from .tasks import find_equivalent_items, get_parser
 
+from rest_framework import viewsets
+from .models import Source, VirtualAsset
+from .serializers import SourceSerializer, VirtualAssetSerializer, VirtualAssetDetailSerializer
+
+from django.shortcuts import render, get_object_or_404
+from django.core.paginator import Paginator
+from django.db.models import Q
+from .models import Source, VirtualAsset, PriceHistory
+from django.utils import timezone
+import json
+
+
+def asset_list(request):
+    """View for displaying list of virtual assets with filtering and pagination"""
+    # Get all assets
+    assets_query = VirtualAsset.objects.all().order_by('name')
+    sources = Source.objects.all()
+    
+    # Apply filters
+    search_query = request.GET.get('search', '')
+    source_filter = request.GET.get('source', '')
+    min_price = request.GET.get('min_price', '')
+    max_price = request.GET.get('max_price', '')
+    
+    if search_query:
+        assets_query = assets_query.filter(name__icontains=search_query)
+    
+    if source_filter:
+        assets_query = assets_query.filter(source_id=source_filter)
+    
+    if min_price:
+        assets_query = assets_query.filter(current_price__gte=min_price)
+    
+    if max_price:
+        assets_query = assets_query.filter(current_price__lte=max_price)
+    
+    # Pagination
+    paginator = Paginator(assets_query, 9)  # 9 assets per page
+    page_number = request.GET.get('page', 1)
+    assets = paginator.get_page(page_number)
+    
+    return render(request, 'assets/list.html', {
+        'assets': assets,
+        'sources': sources,
+    })
+
+def asset_detail(request, pk):
+    """View for displaying details of a specific virtual asset"""
+    asset = get_object_or_404(VirtualAsset, pk=pk)
+    price_history = asset.price_history.all()[:30]  # Last 30 price records
+    
+    # Prepare chart data
+    chart_labels = []
+    chart_prices = []
+    
+    for record in reversed(list(price_history)):
+        chart_labels.append(record.timestamp.strftime('%Y-%m-%d'))
+        chart_prices.append(float(record.price))
+    
+    return render(request, 'assets/detail.html', {
+        'asset': asset,
+        'price_history': price_history,
+        'chart_labels': json.dumps(chart_labels),
+        'chart_prices': json.dumps(chart_prices),
+    })
+
+def asset_compare(request):
+    """View for comparing multiple virtual assets"""
+    assets = VirtualAsset.objects.all().order_by('name')
+    items = []
+    
+    # Get selected items for comparison
+    item_ids = request.GET.getlist('items')
+    if item_ids:
+        for item_id in item_ids:
+            try:
+                asset = VirtualAsset.objects.get(id=item_id)
+                
+                # Get price history for chart
+                price_history = asset.price_history.all().order_by('timestamp')[:30]
+                chart_data = []
+                
+                for record in price_history:
+                    chart_data.append({
+                        'x': record.timestamp.strftime('%Y-%m-%d'),
+                        'y': float(record.price)
+                    })
+                
+                asset.chart_data = json.dumps(chart_data)
+                items.append(asset)
+            except VirtualAsset.DoesNotExist:
+                continue
+    
+    return render(request, 'assets/compare.html', {
+        'assets': assets,
+        'items': items,
+    })
+
+# Add these ViewSet classes
+class SourceViewSet(viewsets.ModelViewSet):
+    queryset = Source.objects.all()
+    serializer_class = SourceSerializer
+
+class VirtualAssetViewSet(viewsets.ModelViewSet):
+    queryset = VirtualAsset.objects.all()
+    serializer_class = VirtualAssetSerializer
+    
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return VirtualAssetDetailSerializer
+        return VirtualAssetSerializer
+
 # Додаємо представлення для головної сторінки
 def dashboard(request):
     # Отримуємо основні дані для дашборду

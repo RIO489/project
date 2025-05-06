@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+
+{% block title %}Головна - Аналіз цін на віртуальні активи{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Огляд платформи</h5>
+            </div>
+            <div class="card-body">
+                <p>Вітаємо на платформі для аналізу цін на віртуальні активи!</p>
+                <p>Ця система дозволяє відстежувати ціни на різні типи віртуальних активів з різних джерел, включаючи ігрові предмети, NFT та інші цифрові колекційні предмети.</p>
+                <div class="d-grid gap-2 d-md-flex justify-content-md-start">
+                    <a href="{% url 'asset_list' %}" class="btn btn-primary">Переглянути всі активи</a>
+                    <a href="{% url 'asset_compare' %}" class="btn btn-outline-primary">Порівняти ціни</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Останні оновлені активи</h5>
+                <a href="{% url 'asset_list' %}" class="btn btn-sm btn-outline-primary">Всі активи</a>
+            </div>
+            <div class="card-body">
+                {% if recent_assets %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Назва</th>
+                                    <th>Джерело</th>
+                                    <th>Поточна ціна</th>
+                                    <th>Оновлено</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for asset in recent_assets %}
+                                    <tr>
+                                        <td>{{ asset.name }}</td>
+                                        <td>{{ asset.source.name }}</td>
+                                        <td>{% if asset.current_price %}{{ asset.current_price }} USD{% else %}—{% endif %}</td>
+                                        <td>{{ asset.last_fetched|default:"-" }}</td>
+                                        <td><a href="{% url 'asset_detail' asset.id %}" class="btn btn-sm btn-primary">Деталі</a></td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">Немає оновлених активів</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Джерела даних</h5>
+            </div>
+            <div class="card-body">
+                {% if sources %}
+                    <ul class="list-group">
+                        {% for source in sources %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                {{ source.name }}
+                                <span class="badge bg-primary rounded-pill">
+                                    {{ source.virtualasset_set.count }} активів
+                                </span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <div class="alert alert-info">Немає доступних джерел</div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Швидкі дії</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{% url 'asset_compare' %}" class="btn btn-outline-primary">Порівняти активи</a>
+                    <a href="{% url 'admin:assets_virtualasset_changelist' %}" class="btn btn-outline-secondary">Адмін-панель</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

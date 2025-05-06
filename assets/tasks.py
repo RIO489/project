@@ -3,9 +3,11 @@
 from abc import ABC, abstractmethod
 import logging
 import requests
+import redis
 from bs4 import BeautifulSoup
 from decimal import Decimal
 from django.utils import timezone
+from celery import shared_task  # Додайте цей рядок
 from .models import Source, VirtualAsset, PriceHistory
 
 logger = logging.getLogger(__name__)
