@@ -1,206 +1,279 @@
+# assets/tasks.py (додати в існуючий файл)
+
+from abc import ABC, abstractmethod
 import logging
 import requests
-from decimal import Decimal
-from datetime import datetime
-from datetime import timedelta
-import redis
-from celery import shared_task
 from bs4 import BeautifulSoup
-from .models import VirtualAsset, PriceHistory, ItemActivity,Source
+from decimal import Decimal
+from django.utils import timezone
+from .models import Source, VirtualAsset, PriceHistory
 
 logger = logging.getLogger(__name__)
 
-# Підключення до Redis
-r = redis.StrictRedis(host='localhost', port=6379, db=0)
+class BaseParser(ABC):
+    """Абстрактний базовий клас для всіх парсерів"""
+    
+    def __init__(self, source):
+        self.source = source
+    
+    @abstractmethod
+    def fetch_price(self, asset):
+        """Отримати поточну ціну для активу"""
+        pass
+    
+    @abstractmethod
+    def fetch_popular_items(self, limit=20):
+        """Отримати список популярних предметів"""
+        pass
+    
+    @abstractmethod
+    def search_items(self, query):
+        """Пошук предметів за запитом"""
+        pass
 
-def check_request_limit(item_name):
-    # Використовуємо ім'я елемента як унікальний ключ для обмеження запитів
-    key = f"request_count:{item_name}"
-    current_time = datetime.now()
-
-    # Встановлюємо час закінчення ліміту (наприклад, 1 година)
-    time_limit = current_time - timedelta(hours=1)
-
-    # Отримуємо кількість запитів за останню годину
-    request_count = r.get(key)
-
-    if request_count and int(request_count.decode()) >= 60:  # 60 запитів на годину, наприклад
-        # Якщо ліміт перевищено, викидаємо помилку
-        raise Exception(f"Request limit exceeded for {item_name}")
-
-    # Якщо ліміт не перевищено, збільшуємо лічильник
-    r.incr(key)
-    r.expire(key, timedelta(hours=1))  # Встановлюємо час закінчення ліміту на 1 годину
-
-
-@shared_task
-def fetch_price_for(asset_id):
-    """
-    Цей таск бере один VirtualAsset по його ID,
-    звертається до його source.api_url + external_id,
-    і створює новий PriceRecord у уніфікованому форматі.
-    """
-    try:
-        asset = VirtualAsset.objects.get(pk=asset_id)
-    except VirtualAsset.DoesNotExist:
-        logger.error(f"Asset #{asset_id} not found, skipping")
-        return
-
-    url_price = f"{asset.source.api_url}/market/pricehistory/?appid=730&market_hash_name={asset.name}"
-    url_activity = f"{asset.source.api_url}/market/itemordersactivity?item_name={asset.name}"
-
-    logger.info(f"Fetching price and activity data for {asset.name}")
-
-    try:
-        resp_price = requests.get(url_price, timeout=10)
-        resp_activity = requests.get(url_activity, timeout=10)
-    except Exception as e:
-        logger.error(f"Request to API failed: {e}")
-        return
-
-    if resp_price.status_code == 200:
-        price_data = resp_price.json()
-        if 'success' in price_data and price_data['success']:
-            price = Decimal(price_data['prices'][0][1])  # Отримуємо першу ціну з історії
-            PriceHistory.objects.create(
-                asset=asset,
-                price=price,
-                currency=price_data['price_suffix'],
-                timestamp=datetime.utcfromtimestamp(price_data['prices'][0][0])
-            )
-            logger.info(f"Price recorded for {asset.name}: {price}")
-        else:
-            logger.error(f"Failed to fetch price data for {asset.name}")
-    else:
-        logger.error(f"Failed to fetch price history for {asset.name}")
-
-    if resp_activity.status_code == 200:
-        activity_data = resp_activity.json()
-        if 'success' in activity_data and activity_data['success']:
-            sales_volume = activity_data['activity'][0][2]  # Кількість проданих одиниць
-            price = Decimal(activity_data['activity'][0][1])  # Поточна ціна
-            ItemActivity.objects.create(
-                asset=asset,
-                sales_volume=sales_volume,
-                price=price,
-                timestamp=datetime.utcfromtimestamp(activity_data['activity'][0][0])
-            )
-            logger.info(f"Activity recorded for {asset.name}: {sales_volume} units sold")
-        else:
-            logger.error(f"Failed to fetch activity data for {asset.name}")
-    else:
-        logger.error(f"Failed to fetch activity for {asset.name}")
-
-    # Оновлюємо останню отриману ціну в VirtualAsset
-    asset.current_price = price
-    asset.last_fetched = datetime.now()
-    asset.save(update_fields=['current_price', 'last_fetched'])
-
-def fetch_price_from_api(item_name):
-    try:
-        check_request_limit(item_name)
-        # Виконуємо запит до API
-        # Наприклад, Steam API
-        url = f"https://steamcommunity.com/market/itemordersactivity?item_name={item_name}"
-        response = requests.get(url)
-        # Обробляємо відповідь від API
-        return response.json()
-    except Exception as e:
-        print(f"Error: {str(e)}")
-        return None
-
-import requests
-from bs4 import BeautifulSoup
-
-def get_item_nameid_from_listing_page(url, appid):
-    """
-    Отримуємо item_nameid зі сторінки Steam, фільтруючи за appid (730 для CS2, 430 для TF2).
-    """
-    try:
-        # Відправляємо GET-запит до сторінки
-        response = requests.get(url)
-        if response.status_code != 200:
-            raise Exception(f"Failed to load page, status code: {response.status_code}")
-
-        # Парсимо HTML сторінки
-        soup = BeautifulSoup(response.text, 'html.parser')
-
-        # Шукаємо всі елементи з атрибутом data-appid, який відповідає одному з двох значень
-        item_nameid = None
-        items = soup.find_all(attrs={"data-appid": appid})
-        
-        if not items:
-            print(f"No items found for appid={appid}")
-            return None
-
-        for item in items:
-            # Шукаємо item_nameid всередині елемента
-            try:
-                item_nameid = item.get("data-item_nameid")
-                if item_nameid:
-                    return item_nameid
-            except AttributeError:
-                continue
-
-        return None
-
-    except Exception as e:
-        print(f"Error parsing item_nameid: {str(e)}")
-        return None
-
-
-@shared_task
-def fetch_popular_items(appid, max_pages=10):
-    """
-    Цей task отримує популярні товари з Steam для заданого appid (наприклад, для TF2 або CS:GO),
-    парсить їх і зберігає в базі даних.
-    """
-    for page_number in range(1, max_pages + 1):
-        url = f"https://steamcommunity.com/market/search?appid={appid}#p{page_number}_popular_asc"
-        logger.info(f"Fetching page {page_number} from {url}")
-
+class SteamParser(BaseParser):
+    """Парсер для Steam Community Market"""
+    
+    def fetch_price(self, asset):
+        """Отримати ціну для активу Steam"""
         try:
-            response = requests.get(url)
-            if response.status_code != 200:
-                logger.warning(f"Failed to fetch page {page_number}, status code {response.status_code}")
-                continue
-
-            soup = BeautifulSoup(response.text, 'html.parser')
-
-            # Парсимо всі елементи на сторінці
-            page_items = soup.find_all('div', class_='market_listing_row')
-            for item in page_items:
-                item_name = item.get('data-hash-name')
-                item_appid = item.get('data-appid')
-
-                # Перевіряємо, чи цей елемент відповідає потрібному appid
-                if item_appid in ['730', '440']:  # CS:GO або TF2
-                    source, created = Source.objects.get_or_create(
-                        api_url=f"https://steamcommunity.com/market/search?appid={appid}",
-                        defaults={'name': 'Steam'}
-                    )
-
-                    # Перевірка на наявність предмета в базі
-                    existing_item = VirtualAsset.objects.filter(
-                        name=item_name, source=source
-                    ).first()
-
-                    if not existing_item:
-                        # Якщо предмет не існує в базі, додаємо його
-                        VirtualAsset.objects.create(
-                            name=item_name,
-                            source=source
-                        )
-                        logger.info(f"Added new item: {item_name}")
+            # Перевіряємо обмеження запитів
+            check_request_limit(f"steam_{asset.external_id}")
             
+            # Формуємо URL запиту
+            url = f"{self.source.api_url}/priceoverview/?currency=1&appid=730&market_hash_name={asset.name}"
+            
+            # Виконуємо запит
+            response = requests.get(url, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                if data.get('success'):
+                    # Парсимо ціну з формату "$123.45"
+                    price_str = data.get('lowest_price', '0').replace('$', '')
+                    price = Decimal(price_str)
+                    
+                    # Оновлюємо запис активу
+                    asset.current_price = price
+                    asset.last_fetched = timezone.now()
+                    asset.save(update_fields=['current_price', 'last_fetched'])
+                    
+                    # Додаємо запис в історію цін
+                    PriceHistory.objects.create(
+                        asset=asset,
+                        price=price,
+                        currency='USD',
+                        timestamp=timezone.now()
+                    )
+                    
+                    logger.info(f"Успішно оновлено ціну для {asset.name}: {price} USD")
+                    return price
+                else:
+                    logger.error(f"Не вдалося отримати ціну для {asset.name}: API повернув помилку")
+            else:
+                logger.error(f"Не вдалося отримати ціну для {asset.name}: HTTP {response.status_code}")
+                
         except Exception as e:
-            logger.error(f"Error while fetching page {page_number}: {e}")
+            logger.error(f"Помилка при отриманні ціни для {asset.name}: {str(e)}")
+        
+        return None
+    
+    def fetch_popular_items(self, limit=20):
+        """Отримати список популярних предметів Steam"""
+        try:
+            # URL для отримання популярних предметів
+            url = f"{self.source.api_url}/search/render/?query=&start=0&count={limit}&search_descriptions=0&sort_column=popular&sort_dir=desc&appid=730"
+            
+            response = requests.get(url, timeout=15)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                if data.get('success') and data.get('results_html'):
+                    # Парсимо HTML результатів
+                    soup = BeautifulSoup(data['results_html'], 'html.parser')
+                    
+                    # Знаходимо всі елементи товарів
+                    items = soup.select('.market_listing_row')
+                    
+                    results = []
+                    for item in items:
+                        try:
+                            name_element = item.select_one('.market_listing_item_name')
+                            price_element = item.select_one('.market_listing_price')
+                            
+                            if name_element and price_element:
+                                name = name_element.text.strip()
+                                price_text = price_element.text.strip().replace('$', '').replace(',', '')
+                                
+                                if price_text and price_text != '-':
+                                    price = Decimal(price_text)
+                                    
+                                    # Перевіряємо, чи існує такий актив
+                                    asset, created = VirtualAsset.objects.get_or_create(
+                                        source=self.source,
+                                        name=name,
+                                        defaults={
+                                            'external_id': name.replace(' ', '_').replace('|', '_'),
+                                            'current_price': price,
+                                            'last_fetched': timezone.now()
+                                        }
+                                    )
+                                    
+                                    # Якщо актив вже існує, оновлюємо ціну
+                                    if not created:
+                                        asset.current_price = price
+                                        asset.last_fetched = timezone.now()
+                                        asset.save(update_fields=['current_price', 'last_fetched'])
+                                    
+                                    # Додаємо запис в історію цін
+                                    PriceHistory.objects.create(
+                                        asset=asset,
+                                        price=price,
+                                        currency='USD',
+                                        timestamp=timezone.now()
+                                    )
+                                    
+                                    results.append(asset)
+                        except Exception as e:
+                            logger.error(f"Помилка при обробці предмету: {str(e)}")
+                    
+                    logger.info(f"Успішно отримано {len(results)} популярних предметів Steam")
+                    return results
+                else:
+                    logger.error("Не вдалося отримати HTML результатів популярних предметів")
+            else:
+                logger.error(f"Не вдалося отримати популярні предмети: HTTP {response.status_code}")
+                
+        except Exception as e:
+            logger.error(f"Помилка при отриманні популярних предметів: {str(e)}")
+        
+        return []
+    
+    def search_items(self, query):
+        """Пошук предметів Steam за запитом"""
+        try:
+            # URL для пошуку предметів
+            url = f"{self.source.api_url}/search/render/?query={query}&start=0&count=20&search_descriptions=0&sort_column=price&sort_dir=asc&appid=730"
+            
+            response = requests.get(url, timeout=15)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                if data.get('success') and data.get('results_html'):
+                    # Парсимо HTML результатів
+                    soup = BeautifulSoup(data['results_html'], 'html.parser')
+                    
+                    # Знаходимо всі елементи товарів
+                    items = soup.select('.market_listing_row')
+                    
+                    results = []
+                    for item in items:
+                        try:
+                            name_element = item.select_one('.market_listing_item_name')
+                            price_element = item.select_one('.market_listing_price')
+                            
+                            if name_element and price_element:
+                                name = name_element.text.strip()
+                                price_text = price_element.text.strip().replace('$', '').replace(',', '')
+                                
+                                if price_text and price_text != '-':
+                                    price = Decimal(price_text)
+                                    
+                                    results.append({
+                                        'name': name,
+                                        'price': price,
+                                        'source': self.source.name,
+                                        'external_id': name.replace(' ', '_').replace('|', '_'),
+                                    })
+                        except Exception as e:
+                            logger.error(f"Помилка при обробці результату пошуку: {str(e)}")
+                    
+                    logger.info(f"Успішно знайдено {len(results)} предметів Steam за запитом '{query}'")
+                    return results
+                else:
+                    logger.error("Не вдалося отримати HTML результатів пошуку")
+            else:
+                logger.error(f"Не вдалося виконати пошук: HTTP {response.status_code}")
+                
+        except Exception as e:
+            logger.error(f"Помилка при пошуку предметів: {str(e)}")
+        
+        return []
 
-    logger.info("Finished fetching and saving popular items.")
+# Фабрика парсерів
+def get_parser(source_name):
+    """Повертає відповідний парсер для вказаного джерела"""
+    try:
+        source = Source.objects.get(name=source_name)
+        
+        if source_name == 'Steam':
+            return SteamParser(source)
+        # Тут можна додати інші парсери для різних платформ
+        
+        logger.error(f"Парсер для джерела '{source_name}' не реалізовано")
+        
+    except Source.DoesNotExist:
+        logger.error(f"Джерело '{source_name}' не знайдено в базі даних")
+    
+    return None
 
+# Оновлена функція для пошуку еквівалентних предметів
+def find_equivalent_items(asset, threshold=0.7):
+    """
+    Знаходить еквівалентні предмети на інших платформах
+    
+    :param asset: VirtualAsset для пошуку еквівалентів
+    :param threshold: Поріг схожості для нечіткого пошуку (0-1)
+    :return: Список знайдених еквівалентних предметів
+    """
+    # Отримуємо всі джерела, крім поточного
+    other_sources = Source.objects.exclude(id=asset.source.id)
+    
+    # Готуємо варіанти пошукових запитів
+    search_queries = [
+        asset.name,
+        # Спрощені версії назви
+        asset.name.split('|')[0].strip() if '|' in asset.name else asset.name,
+        asset.name.split('(')[0].strip() if '(' in asset.name else asset.name
+    ]
+    
+    # Видаляємо дублікати
+    search_queries = list(set(search_queries))
+    
+    results = []
+    
+    for source in other_sources:
+        parser = get_parser(source.name)
+        
+        if not parser:
+            continue
+        
+        for query in search_queries:
+            # Пошук предметів на поточній платформі
+            found_items = parser.search_items(query)
+            
+            for item in found_items:
+                # Тут можна додати алгоритм нечіткого порівняння назв
+                # для визначення подібності предметів
+                # Наприклад, використати fuzzywuzzy або інші бібліотеки
+                
+                # Для простоти зараз просто додаємо всі знайдені предмети
+                results.append(item)
+    
+    return results
 
-
+# Оновлена функція оновлення цін для всіх активів
 @shared_task
 def fetch_all_prices():
+    """Оновлює ціни для всіх активів"""
     for asset in VirtualAsset.objects.all():
-        fetch_price_for.delay(asset.id)
+        parser = get_parser(asset.source.name)
+        
+        if parser:
+            parser.fetch_price(asset)
+        else:
+            # Для джерел без парсера використовуємо стару функцію
+            fetch_price_for.delay(asset.id)

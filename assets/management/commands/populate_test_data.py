@@ -2,6 +2,7 @@ import random
 import datetime
 from decimal import Decimal
 from django.core.management.base import BaseCommand
+from django.utils import timezone
 from assets.models import Source, VirtualAsset, PriceHistory, ItemActivity
 
 class Command(BaseCommand):
@@ -85,20 +86,20 @@ class Command(BaseCommand):
             
             # Оновлюємо поточну ціну для активу
             asset.current_price = base_price
-            asset.last_fetched = datetime.datetime.now()
+            asset.last_fetched = timezone.now()
             asset.save()
             
             # Генеруємо історію цін за останні 30 днів
             for day in range(30, 0, -1):
-                date = datetime.datetime.now() - datetime.timedelta(days=day)
+                date = timezone.now() - datetime.timedelta(days=day)
                 
                 # Додаємо випадкову зміну до базової ціни
                 change_percent = random.uniform(-0.05, 0.05)  # від -5% до +5%
-                price = base_price * (1 + change_percent)
+                price = base_price * (Decimal('1') + Decimal(str(change_percent)))  
                 
                 # Додаємо тренд - поступове зростання або падіння
                 trend_factor = random.uniform(-0.001, 0.003) * day
-                price = price * (1 + trend_factor)
+                price = price * (Decimal('1') + Decimal(str(trend_factor)))
                 
                 # Зберігаємо заокруглену ціну
                 price = round(price, 2)
