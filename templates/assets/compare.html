@@ -201,6 +201,7 @@
             
             // Створення графіка
             const ctx = document.getElementById('compareChart').getContext('2d');
+            console.log("Дані для графіків:", datasets);
             const chart = new Chart(ctx, {
                 type: 'line',
                 data: {
