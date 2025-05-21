@@ -21,11 +21,11 @@ Redis 6+
 Встановлення
 
 Клонування репозиторію:
-bashgit clone https://github.com/yourusername/virtual-asset-analyzer.git
+ git clone https://github.com/yourusername/virtual-asset-analyzer.git
 cd virtual-asset-analyzer
 
 Створення та активація віртуального середовища:
-bashpython -m venv venv
+ python -m venv venv
 
 # У Windows
 venv\Scripts\activate
@@ -34,14 +34,14 @@ venv\Scripts\activate
 source venv/bin/activate
 
 Встановлення необхідних залежностей:
-bashpip install -r requirements.txt
+ pip install -r requirements.txt
 
 Налаштування бази даних:
 
 Для SQLite (розробка):
 Додаткове налаштування не потрібне
 Для PostgreSQL (виробниче середовище):
-bash# Створення бази даних PostgreSQL
+ # Створення бази даних PostgreSQL
 createdb virtual_asset_analyzer
 
 # Налаштування бази даних у settings.py або через змінні середовища
@@ -49,10 +49,10 @@ createdb virtual_asset_analyzer
 
 
 Застосування міграцій:
-bashpython manage.py migrate
+ python manage.py migrate
 
 Створення суперкористувача:
-bashpython manage.py createsuperuser
+ python manage.py createsuperuser
 
 
 Налаштування
@@ -69,23 +69,23 @@ REDIS_URL=redis://localhost:6379/0
 Запуск додатку
 
 Запуск сервера Redis:
-bash# У Linux/macOS
+ # У Linux/macOS
 redis-server
 
 # У Windows
 # Дотримуйтесь інструкцій з встановлення Redis для Windows
 
 Запуск воркера Celery:
-bashcelery -A myproject worker -l info
+ celery -A myproject worker -l info
 
 Запуск Celery beat для запланованих завдань:
-bashcelery -A myproject beat -l info
+ celery -A myproject beat -l info
 
 Запуск сервера розробки Django:
-bashpython manage.py runserver
+ python manage.py runserver
 
 Завантаження тестових даних (опціонально):
-bashpython manage.py populate_test_data
+ python manage.py populate_test_data
 
 Доступ до додатку за адресою http://localhost:8000
 
